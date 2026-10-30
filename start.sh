@@ -43,7 +43,7 @@ echo "3/4 Запускаю проект (первый раз сборка зай
 docker compose up -d --build
 
 echo "4/4 Подключаю бота к Telegram..."
-docker compose run --rm bot-webhook
+docker compose run --rm --build bot-webhook
 
 echo
 echo "Готово."

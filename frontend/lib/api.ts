@@ -11,7 +11,7 @@ type ProductPage = {
   total: number;
 };
 
-// Server-side only: the page is rendered on the server, the browser never calls the API directly.
+// Used for server-side rendering; the browser talks to the same API through nginx (see catalog.tsx).
 const API_URL = process.env.API_INTERNAL_URL ?? "http://localhost:8000";
 
 export async function fetchProducts(): Promise<Product[]> {

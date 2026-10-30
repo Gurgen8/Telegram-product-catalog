@@ -4,7 +4,6 @@ x-backend-env: &backend-env
   S3_ACCESS_KEY: ${MINIO_ROOT_USER}
   S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
   S3_BUCKET: ${S3_BUCKET:-products}
-  MEDIA_PUBLIC_URL: ${PUBLIC_URL}/media
   INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
 
 x-bot-env: &bot-env
@@ -108,8 +107,10 @@ services:
     restart: unless-stopped
 
   # One-shot: registers the webhook once instead of every replica racing on startup.
+  # Not started by `up`; start.sh runs it after the tunnel URL is known.
   bot-webhook:
     build: ./bot
+    profiles: ["setup"]
     command: ["python", "-m", "app.main", "set-webhook"]
     environment: *bot-env
     depends_on:

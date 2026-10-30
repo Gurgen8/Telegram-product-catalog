@@ -1,26 +1,44 @@
 # Docker embedded DNS. Re-resolve often so scaled/restarted replicas are picked up.
 resolver 127.0.0.11 valid=10s ipv6=off;
 
+# Reuse connections to upstreams instead of opening one per request.
 upstream backend {
     zone backend 64k;
     server backend:8000 resolve;
+    keepalive 32;
 }
 
 upstream frontend {
     zone frontend 64k;
     server frontend:3000 resolve;
+    keepalive 32;
 }
 
 upstream bot {
     zone bot 64k;
     server bot:8080 resolve;
+    keepalive 8;
 }
+
+upstream minio {
+    server minio:9000;
+    keepalive 16;
+}
+
+gzip on;
+gzip_comp_level 5;
+gzip_min_length 1024;
+gzip_proxied any;
+gzip_vary on;
+gzip_types text/css application/javascript application/json image/svg+xml text/plain;
 
 server {
     listen 80;
     client_max_body_size 20m;
+    server_tokens off;
 
     proxy_http_version 1.1;
+    proxy_set_header Connection "";
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -44,9 +62,15 @@ server {
         proxy_pass http://bot;
     }
 
+    # Image keys are random UUIDs and never overwritten, so they can be cached forever.
     location /media/ {
+        limit_except GET HEAD { deny all; }
         proxy_set_header Host minio:9000;
-        proxy_pass http://minio:9000/${S3_BUCKET}/;
+        proxy_hide_header x-amz-request-id;
+        proxy_hide_header x-amz-id-2;
+        proxy_hide_header Server;
+        proxy_pass http://minio/${S3_BUCKET}/;
+        add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
     location / {

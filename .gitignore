@@ -7,3 +7,6 @@ node_modules/
 .tunnel.pid
 .tunnel.log
 .env.tmp
+*.tsbuildinfo
+.mypy_cache/
+.ruff_cache/

@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import sys
+from typing import Any
 
 from aiogram import Bot, Dispatcher
+from aiogram.methods import TelegramMethod
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
@@ -32,7 +34,7 @@ class WebhookHandler(SimpleRequestHandler):
     """
 
     async def _handle_request(self, bot: Bot, request: web.Request) -> web.Response:
-        result = await self.dispatcher.feed_webhook_update(
+        result: TelegramMethod[Any] | None = await self.dispatcher.feed_webhook_update(
             bot, await request.json(loads=bot.session.json_loads), **self.data
         )
         if result is None:

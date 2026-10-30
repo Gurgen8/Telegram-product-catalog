@@ -7,7 +7,7 @@ SSE clients) receive it. No state is shared between instances except PostgreSQL 
 import asyncio
 import logging
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 
 import asyncpg
 
@@ -35,10 +35,8 @@ class ProductEvents:
     async def stop(self) -> None:
         if self._task:
             self._task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
 
     @contextmanager
     def subscribe(self) -> Iterator[asyncio.Queue[object]]:

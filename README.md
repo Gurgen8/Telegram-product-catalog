@@ -149,7 +149,7 @@ cloudflared tunnel --url http://localhost:8080
 # окно 2: подставить адрес из окна 1
 sed -i '' 's|^PUBLIC_URL=.*|PUBLIC_URL=https://ВАШ-АДРЕС.trycloudflare.com|' .env
 docker compose up -d --build
-docker compose run --rm bot-webhook
+docker compose run --rm --build bot-webhook
 ```
 
 ---
@@ -166,7 +166,7 @@ make status
 |---|---|
 | `backend` ×2, `bot` ×2 | `Up (healthy)` |
 | `frontend` ×2, `nginx`, `postgres`, `minio` | `Up` |
-| `migrate`, `minio-init`, `bot-webhook` | `Exited (0)` — одноразовые задачи, так и должно быть |
+| `migrate`, `minio-init` | `Exited (0)` — одноразовые задачи, так и должно быть |
 
 ### 2. Каталог в браузере
 
@@ -300,7 +300,7 @@ Telegram ──┐          │                                                 
 | Компонент | Роль |
 |---|---|
 | **cloudflared** | Даёт публичный HTTPS-адрес. Telegram работает только с HTTPS |
-| **nginx** | Единственная точка входа. Раздаёт запросы по путям и между копиями сервисов. Если копия не отвечает, отправляет запрос в другую |
+| **nginx** | Единственная точка входа. Раздаёт запросы по путям и между копиями сервисов, держит постоянные соединения с ними, сжимает ответы (gzip), кеширует картинки. Если копия не отвечает, отправляет запрос в другую |
 | **bot** | aiogram 3. Принимает сообщения от Telegram через вебхук, создаёт товары через backend |
 | **backend** | FastAPI. Единственный, кто пишет в PostgreSQL и MinIO. Рассылает живые обновления по WebSocket |
 | **frontend** | Next.js. Рендерит страницу «Каталог» на сервере, в браузере подключается к живым обновлениям |
@@ -308,7 +308,7 @@ Telegram ──┐          │                                                 
 | **MinIO** | S3-хранилище, бакет `products` с картинками |
 | **migrate** | Одноразово применяет миграции Alembic перед стартом backend |
 | **minio-init** | Одноразово создаёт бакет и открывает его на чтение |
-| **bot-webhook** | Одноразово регистрирует вебхук в Telegram |
+| **bot-webhook** | Регистрирует вебхук в Telegram. Не запускается сам при `docker compose up`, его вызывает `make start`, когда адрес туннеля уже известен |
 
 ### Таблица `products`
 
@@ -370,7 +370,7 @@ Telegram ──┐          │                                                 
 
 ### Список товаров (`GET /api/products`)
 
-Читает товары из PostgreSQL (новые первыми) и строит ссылки на картинки: `PUBLIC_URL/media/<image_key>`.
+Читает товары из PostgreSQL (новые первыми) и строит ссылки на картинки: `/media/<image_key>`. Ссылки относительные, поэтому работают на любом адресе: localhost, туннель, свой домен.
 
 ### Живые обновления (`/api/products/ws`)
 
@@ -392,7 +392,7 @@ Telegram ──┐          │                                                 
 1. Пользователь открывает каталог: кнопка в Telegram или адрес в браузере.
 2. nginx передаёт запрос во frontend.
 3. Next.js на сервере запрашивает `GET /api/products` и отдаёт готовый HTML с товарами.
-4. Браузер загружает картинки по `/media/…`, nginx берёт их из MinIO.
+4. Браузер загружает картинки по `/media/…`, nginx берёт их из MinIO. Имена картинок уникальны и не меняются, поэтому nginx разрешает браузеру кешировать их навсегда.
 5. Страница открывает WebSocket к `/api/products/ws`:
    - `product` — добавляет карточку в начало списка;
    - `deleted` — убирает карточки с этими `id`;
@@ -442,7 +442,7 @@ Telegram ──┐          │                                                 
   "id": 1,
   "title": "Apple AirPods Max",
   "description": "Цвет: Серебристый\nЦена: 549 €",
-  "image_url": "https://….trycloudflare.com/media/<uuid>.jpg",
+  "image_url": "/media/<uuid>.jpg",
   "created_at": "2026-10-30T18:13:17.979507Z"
 }
 ```

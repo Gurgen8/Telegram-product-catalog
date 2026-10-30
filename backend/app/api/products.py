@@ -116,7 +116,8 @@ async def create_product(
             response.status_code = status.HTTP_200_OK
             return to_schema(existing, storage)
 
-    if not storage.is_supported(image.content_type):
+    content_type = image.content_type
+    if content_type is None or not storage.is_supported(content_type):
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Unsupported image type")
 
     data = await image.read(settings.max_image_size + 1)
@@ -125,7 +126,7 @@ async def create_product(
     if not data:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Image is empty")
 
-    key = await storage.put(data, image.content_type)
+    key = await storage.put(data, content_type)
 
     stmt = (
         insert(Product)
@@ -147,7 +148,11 @@ async def create_product(
     if product is None:
         # Another instance won the race for the same idempotency key.
         await storage.delete(key)
-        product = await find_by_external_id(session, idempotency_key)
+        existing = await find_by_external_id(session, idempotency_key) if idempotency_key else None
+        if existing is None:
+            # The concurrently created product was deleted in the meantime.
+            raise HTTPException(status.HTTP_409_CONFLICT, "Product was created concurrently and then deleted")
         response.status_code = status.HTTP_200_OK
+        product = existing
 
     return to_schema(product, storage)
